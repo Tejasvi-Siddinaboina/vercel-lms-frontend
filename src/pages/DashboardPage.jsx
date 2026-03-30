@@ -15,6 +15,9 @@ export default function DashboardPage() {
   const [formErr, setFormErr] = useState('')
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState(null)
+  // ✨ AI states
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiSummary, setAiSummary] = useState('')
   const navigate = useNavigate()
   const user = JSON.parse(localStorage.getItem('lms_user') || '{}')
 
@@ -34,8 +37,10 @@ export default function DashboardPage() {
   useEffect(() => { fetchAll() }, [fetchAll])
 
   const logout = () => { localStorage.clear(); navigate('/login') }
-  const openAdd = () => { setEditTarget(null); setForm(EMPTY); setFormErr(''); setModal(true) }
-  const openEdit = (b) => { setEditTarget(b); setForm({...b}); setFormErr(''); setModal(true) }
+
+  // ✨ Reset aiSummary when opening modal
+  const openAdd = () => { setEditTarget(null); setForm(EMPTY); setFormErr(''); setAiSummary(''); setModal(true) }
+  const openEdit = (b) => { setEditTarget(b); setForm({...b}); setFormErr(''); setAiSummary(''); setModal(true) }
 
   const handleSave = async () => {
     if (!form.title || !form.author) { setFormErr('Title and author are required'); return }
@@ -47,6 +52,23 @@ export default function DashboardPage() {
       setModal(false); fetchAll()
     } catch (e) { setFormErr(e.response?.data?.message || 'Save failed') }
     finally { setSaving(false) }
+  }
+
+  // ✨ AI Summary function
+  const generateSummary = async () => {
+    if (!form.title || !form.author) { setFormErr('Enter title and author first'); return }
+    setAiLoading(true)
+    setFormErr('')
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/ai/summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: form.title, author: form.author })
+      })
+      const data = await res.json()
+      setAiSummary(data.summary)
+    } catch { setFormErr('AI summary failed') }
+    finally { setAiLoading(false) }
   }
 
   const handleDelete = async (id, title) => {
@@ -223,7 +245,26 @@ export default function DashboardPage() {
               <h3 style={s.modalTitle}>{editTarget ? 'Edit Book' : 'Add New Book'}</h3>
               <button style={{background:'none', border:'none', color:'rgba(255,255,255,0.4)', fontSize:'18px', cursor:'pointer'}} onClick={()=>setModal(false)}>✕</button>
             </div>
+
             {formErr && <div style={s.formErr}>⚠ {formErr}</div>}
+
+            {/* ✨ AI SUMMARY BUTTON */}
+            <button
+              style={{...s.aiBtn, opacity: aiLoading ? 0.7 : 1}}
+              onClick={generateSummary}
+              disabled={aiLoading}
+            >
+              {aiLoading ? '✨ Generating Summary...' : '✨ Generate AI Summary'}
+            </button>
+
+            {/* ✨ AI SUMMARY RESULT */}
+            {aiSummary && (
+              <div style={s.aiBox}>
+                <div style={s.aiBoxLabel}>✨ AI SUMMARY</div>
+                {aiSummary}
+              </div>
+            )}
+
             <div style={s.formGrid}>
               {[
                 {key:'title', label:'Book Title *', span:true, type:'text', ph:'e.g. The Great Gatsby'},
@@ -304,6 +345,24 @@ const styles = {
     padding:'11px 22px', background:'linear-gradient(135deg,#b8955a,#d4b070)',
     border:'none', borderRadius:'10px', color:'#0a0a0f',
     fontSize:'14px', fontWeight:'600', cursor:'pointer', fontFamily:"'Jost',sans-serif", whiteSpace:'nowrap',
+  },
+  // ✨ AI Button style
+  aiBtn: {
+    width:'100%', padding:'11px', marginBottom:'14px',
+    background:'linear-gradient(135deg,rgba(107,143,255,0.15),rgba(184,149,90,0.15))',
+    border:'1px solid rgba(107,143,255,0.35)', borderRadius:'10px',
+    color:'#a0b4ff', fontSize:'14px', fontWeight:'600',
+    cursor:'pointer', fontFamily:"'Jost',sans-serif",
+  },
+  // ✨ AI Summary box style
+  aiBox: {
+    background:'rgba(184,149,90,0.08)', border:'1px solid rgba(184,149,90,0.25)',
+    borderRadius:'10px', padding:'14px', marginBottom:'16px',
+    fontSize:'13px', color:'rgba(255,255,255,0.75)', lineHeight:'1.7',
+  },
+  aiBoxLabel: {
+    fontSize:'10px', color:'#b8955a', fontWeight:'700',
+    letterSpacing:'0.1em', marginBottom:'8px',
   },
   statsGrid: { display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'16px', marginBottom:'28px' },
   statCard: {
